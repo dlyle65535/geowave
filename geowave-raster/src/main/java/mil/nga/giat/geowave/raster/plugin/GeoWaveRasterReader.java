@@ -608,7 +608,7 @@ public class GeoWaveRasterReader extends
 
 		final double[][] resolutionLevels = getResolutionLevels(coverageName);
 		Histogram histogram = null;
-		if (config.isEqualizeHistogram()) {
+		if (config.isEqualizeHistogramOverride()) {
 			histogram = getHistogram(
 					coverageName,
 					resolutionLevels[imageChoice.intValue()][0],
@@ -633,7 +633,7 @@ public class GeoWaveRasterReader extends
 				state.isXAxisSwitch(),
 				coverageFactory,
 				state.getCoverageName(),
-				config.getInterpolation(),
+				config.getInterpolationOverride(),
 				histogram,
 				adapter.getColorModel());
 

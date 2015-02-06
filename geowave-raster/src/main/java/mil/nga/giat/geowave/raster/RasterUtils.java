@@ -18,6 +18,8 @@ import java.awt.image.Raster;
 import java.awt.image.RenderedImage;
 import java.awt.image.SampleModel;
 import java.awt.image.WritableRaster;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,6 +28,7 @@ import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.imageio.ImageIO;
 import javax.media.jai.BorderExtender;
 import javax.media.jai.Histogram;
 import javax.media.jai.Interpolation;
@@ -386,6 +389,8 @@ public class RasterUtils
 		}
 	}
 
+	public static String COVERAGE_NAME = "";
+
 	public static GridCoverage2D mosaicGridCoverages(
 			final Iterator<GridCoverage> gridCoverages,
 			final Color backgroundColor,
@@ -434,7 +439,48 @@ public class RasterUtils
 					posx,
 					posy,
 					coverageImage.getData());
+			final Raster raster = coverageImage.getData();
+			final File f = new File(
+					"C:\\Temp\\kde_test5",
+					COVERAGE_NAME + posx + "_" + posy + ".png");
+			f.delete();
+			try {
+				f.createNewFile();
 
+				final BufferedImage heatmap = new BufferedImage(
+						raster.getWidth(),
+						raster.getHeight(),
+						BufferedImage.TYPE_BYTE_GRAY);
+				final Graphics g = heatmap.createGraphics();
+				for (int x = 0; x < raster.getWidth(); x++) {
+					for (int y = 0; y < raster.getHeight(); y++) {
+						final double sample = raster.getSampleDouble(
+								x,
+								y,
+								2);
+						if (!Double.isNaN(sample)) {
+							g.setColor(new Color(
+									(float) sample,
+									(float) sample,
+									(float) sample));
+							g.fillRect(
+									x,
+									y,
+									1,
+									1);
+						}
+					}
+				}
+				heatmap.flush();
+				ImageIO.write(
+						heatmap,
+						"png",
+						f);
+			}
+			catch (final IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 
 		if (image == null) {
@@ -737,6 +783,8 @@ public class RasterUtils
 				noDataValuesPerBand,
 				backgroundValuesPerBand,
 				null,
+				false,
+				Interpolation.INTERP_NEAREST,
 				false,
 				new NoDataMergeStrategy());
 	}

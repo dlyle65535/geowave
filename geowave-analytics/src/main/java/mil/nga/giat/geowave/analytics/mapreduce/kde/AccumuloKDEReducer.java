@@ -194,7 +194,10 @@ public class AccumuloKDEReducer extends
 				tileSouthLat,
 				tileNorthLat,
 				x,
-				y);
+				tileSize - y - 1); // remember java rasters go from 0 at the top
+									// to (height-1) at the bottom, so we have to
+									// inverse the y here which goes from bottom
+									// to top
 	}
 
 	@Override
