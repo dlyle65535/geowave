@@ -128,6 +128,7 @@ import org.opengis.referencing.operation.MathTransform1D;
 import org.opengis.referencing.operation.TransformException;
 import org.opengis.util.InternationalString;
 
+import com.google.common.collect.Iterators;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 
@@ -251,7 +252,9 @@ public class RasterDataAdapter implements
 			final RasterTileMergeStrategy<?> mergeStrategy ) {
 		this(
 				coverageName,
-				adapter.getSampleModel().createCompatibleSampleModel(tileSize, tileSize),
+				adapter.getSampleModel().createCompatibleSampleModel(
+						tileSize,
+						tileSize),
 				adapter.getColorModel(),
 				adapter.getMetadata(),
 				tileSize,
@@ -371,6 +374,9 @@ public class RasterDataAdapter implements
 	public Iterator<GridCoverage> convertToIndex(
 			final Index index,
 			final GridCoverage gridCoverage ) {
+		if (gridCoverage instanceof FitToIndexGridCoverage){
+			return Iterators.singletonIterator(gridCoverage);
+		}
 		if (index.getIndexStrategy() instanceof HierarchicalNumericIndexStrategy) {
 			final CoordinateReferenceSystem sourceCrs = gridCoverage.getCoordinateReferenceSystem();
 
@@ -467,28 +473,40 @@ public class RasterDataAdapter implements
 				final Entry<Double, SubStrategy> bestEntry = substrategyMap.higherEntry(1.0);
 				pyramidLevels.add(bestEntry.getValue());
 			}
-			try {
-				final GridCoverage c2 = prepareCoverage(
-						gridCoverage.getRenderedImage().getData().getDataBuffer(),
-						gridCoverage.getRenderedImage().getWidth(),
-						sampleReferencedEnvelope);
-				return new IteratorWrapper<SubStrategy, GridCoverage>(
-						pyramidLevels.iterator(),
-						new MosaicPerPyramidLevelBuilder(
-								bounds,
-								gridCoverage,
-								c2,
-								tileSize,
-								backgroundValuesPerBand,
-								RasterUtils.getFootprint(
-										projectedReferenceEnvelope,
-										gridCoverage),
-								interpolation));
+			System.err.println("Levels: " + pyramidLevels.size());
+			System.err.println("Tier: " + pyramidLevels.get(0).getPrefix()[0]);
+			if (pyramidLevels.size() != 1){
+				System.err.println("crap");
 			}
-			catch (final IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+			SubStrategy pyramidLevel = pyramidLevels.get(0);
+			final double[] idRangePerDimension = pyramidLevel.getIndexStrategy().getHighestPrecisionIdRangePerDimension();
+			// to create a pyramid, ingest into each substrategy that is
+			// lower resolution than the sample set in at least one
+			// dimension and the one substrategy that is at least the same
+			// resolution or higher resolution to retain the original
+			// resolution as well as possible
+			double maxSubstrategyResToSampleSetRes = -Double.MAX_VALUE;
+
+			for (int d = 0; d < tileRangePerDimension.length; d++) {
+				final double substrategyResToSampleSetRes = idRangePerDimension[d] / tileRangePerDimension[d];
+				maxSubstrategyResToSampleSetRes = Math.max(
+						maxSubstrategyResToSampleSetRes,
+						substrategyResToSampleSetRes);
 			}
+			if (maxSubstrategyResToSampleSetRes != 1.0){
+				System.err.println("crap " + maxSubstrategyResToSampleSetRes);
+			}
+			return new IteratorWrapper<SubStrategy, GridCoverage>(
+					pyramidLevels.iterator(),
+					new MosaicPerPyramidLevelBuilder(
+							bounds,
+							gridCoverage,
+							tileSize,
+							backgroundValuesPerBand,
+							RasterUtils.getFootprint(
+									projectedReferenceEnvelope,
+									gridCoverage),
+							interpolation));
 		}
 		return null;
 	}
@@ -498,7 +516,6 @@ public class RasterDataAdapter implements
 	{
 		private final MultiDimensionalNumericData originalBounds;
 		private final GridCoverage originalData;
-		private final GridCoverage copy;
 		private final int tileSize;
 		private final double[] backgroundValuesPerBand;
 		private final Geometry footprint;
@@ -507,7 +524,6 @@ public class RasterDataAdapter implements
 		public MosaicPerPyramidLevelBuilder(
 				final MultiDimensionalNumericData originalBounds,
 				final GridCoverage originalData,
-				final GridCoverage copy,
 				final int tileSize,
 				final double[] backgroundValuesPerBand,
 				final Geometry footprint,
@@ -515,7 +531,6 @@ public class RasterDataAdapter implements
 			this.originalBounds = originalBounds;
 			this.originalData = originalData;
 			this.tileSize = tileSize;
-			this.copy = copy;
 			this.backgroundValuesPerBand = backgroundValuesPerBand;
 			this.footprint = footprint;
 			this.defaultInterpolation = defaultInterpolation;
@@ -667,7 +682,7 @@ public class RasterDataAdapter implements
 								insertionIdGeometry,
 								tileInterpolation,
 								backgroundValuesPerBand);
-						
+
 						// NOTE: for now this is commented out, but beware the
 						// resample operation under certain conditions,
 						// this requires more investigation rather than adding a
@@ -778,13 +793,15 @@ public class RasterDataAdapter implements
 		return getCoverageFromRasterTile(
 				(RasterTile) rasterTile,
 				data.getIndexInsertionId(),
-				index);
+				index,
+				false);
 	}
 
 	public GridCoverage getCoverageFromRasterTile(
 			final RasterTile rasterTile,
 			final ByteArrayId insertionId,
-			final Index index ) {
+			final Index index,
+			boolean returnFit) {
 		final MultiDimensionalNumericData indexRange = index.getIndexStrategy().getRangeForId(
 				insertionId);
 		final NumericDimensionDefinition[] orderedDimensions = index.getIndexStrategy().getOrderedDimensionDefinitions();
@@ -815,10 +832,18 @@ public class RasterDataAdapter implements
 				maxesPerDimension[1],
 				GeoWaveGTRasterFormat.DEFAULT_CRS);
 		try {
-			return prepareCoverage(
+			if (returnFit){
+			return new FitToIndexGridCoverage( prepareCoverage(
 					rasterTile.getDataBuffer(),
 					tileSize,
-					mapExtent);
+					mapExtent),insertionId, null,null,null,null);
+			}
+			else{
+				return prepareCoverage(
+						rasterTile.getDataBuffer(),
+						tileSize,
+						mapExtent);
+			}
 		}
 		catch (final IOException e) {
 			LOGGER.warn(

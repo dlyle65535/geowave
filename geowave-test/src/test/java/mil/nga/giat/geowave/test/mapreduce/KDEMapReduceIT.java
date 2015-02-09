@@ -8,6 +8,7 @@ import java.awt.image.Raster;
 import java.awt.image.RenderedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.Map.Entry;
 
 import javax.imageio.ImageIO;
 import javax.media.jai.Interpolation;
@@ -20,6 +21,7 @@ import mil.nga.giat.geowave.raster.plugin.GeoWaveGTRasterFormat;
 import mil.nga.giat.geowave.raster.plugin.GeoWaveRasterConfig;
 import mil.nga.giat.geowave.raster.plugin.GeoWaveRasterReader;
 import mil.nga.giat.geowave.raster.resize.RasterTileResizeJobRunner;
+import mil.nga.giat.geowave.raster.resize.RasterTileResizeReducer;
 import mil.nga.giat.geowave.store.index.IndexType;
 import mil.nga.giat.geowave.types.gpx.GpxUtils;
 
@@ -37,7 +39,7 @@ public class KDEMapReduceIT extends
 {
 	private static final String TEST_COVERAGE_NAME_PREFIX = "TEST_COVERAGE";
 	private static final String TEST_RESIZE_COVERAGE_NAME_PREFIX = "TEST_RESIZE";
-	private static final int MAX_TILE_SIZE_POWER_OF_2 = 5;
+	private static final int MAX_TILE_SIZE_POWER_OF_2 = 4;
 	private static final int BASE_MIN_LEVEL = 14;
 	private static final int BASE_MAX_LEVEL = 16;
 	private void testIngestShp(
@@ -58,8 +60,8 @@ public class KDEMapReduceIT extends
 		testIngestShp(
 				IndexType.SPATIAL_VECTOR,
 				"C:\\Users\\rfecher\\DotMatrixWorkspace\\data\\Export_Dots.shp");
-		for (int i = 0; i <= MAX_TILE_SIZE_POWER_OF_2; i++) {
-			if (i <1){
+		for (int i = 1; i <= 2; i++) {
+//			if (i <1){
 			final String tileSizeCoverageName = TEST_COVERAGE_NAME_PREFIX + i;
 			ToolRunner.run(
 					new KDEJobRunner(),
@@ -71,7 +73,7 @@ public class KDEMapReduceIT extends
 						TEST_NAMESPACE,
 						"Export_Dots",
 						new Integer(
-								BASE_MIN_LEVEL - i).toString(),
+								BASE_MAX_LEVEL - i).toString(),
 						new Integer(
 								BASE_MAX_LEVEL - i).toString(),
 						new Integer(
@@ -87,15 +89,15 @@ public class KDEMapReduceIT extends
 										2,
 										i)).toString()
 					});
-			}
+//			}
 		}
 		
-//		final int[] counts1 = testCounts(
-//				TEST_COVERAGE_NAME_PREFIX,
-//				MAX_TILE_SIZE_POWER_OF_2 + 1,
-//				new Rectangle(
-//						256,
-//						256));
+		final int[] counts1 = testCounts(
+				TEST_COVERAGE_NAME_PREFIX,
+				2,
+				new Rectangle(
+						256,
+						256));
 
 //		final Connector conn = ConnectorPool.getInstance().getConnector(
 //				zookeeper,
@@ -115,7 +117,7 @@ public class KDEMapReduceIT extends
 //						256,
 //						256));
 
-		for (int i = 0; i <= MAX_TILE_SIZE_POWER_OF_2; i++) {
+		for (int i = 1; i <= 2; i++) {
 //			if (i <1){
 			final String originalTileSizeCoverageName = TEST_COVERAGE_NAME_PREFIX + i;
 			final String resizeTileSizeCoverageName = TEST_RESIZE_COVERAGE_NAME_PREFIX + i;
@@ -139,14 +141,17 @@ public class KDEMapReduceIT extends
 						new Integer(
 								(int) Math.pow(
 										2,
-										MAX_TILE_SIZE_POWER_OF_2-i)).toString()
+										5-i)).toString()
 					});
 //			}
+		}
+		for (Entry<Byte, Long> e : RasterTileResizeReducer.countsPerTier.entrySet()){
+			System.err.println("Count at " + e.getKey()+": " + e.getValue());
 		}
 //
 		final int[] counts3 = testCounts(
 				TEST_RESIZE_COVERAGE_NAME_PREFIX,
-				MAX_TILE_SIZE_POWER_OF_2 + 1,
+				2 ,
 				new Rectangle(
 						256,
 						256));
@@ -165,10 +170,10 @@ public class KDEMapReduceIT extends
 //						64,
 //						64));
 
-//		System.err.println("testing kde");
-//		for (int i = 0; i < counts1.length; i++) {
-//			System.err.println("counts[" + i + "]:" + counts1[i]);
-//		}
+		System.err.println("testing kde");
+		for (int i = 0; i < counts1.length; i++) {
+			System.err.println("counts[" + i + "]:" + counts1[i]);
+		}
 		System.err.println("testing resize");
 		for (int i = 0; i < counts3.length; i++) {
 			System.err.println("counts[" + i + "]:" + counts3[i]);
@@ -212,7 +217,7 @@ public class KDEMapReduceIT extends
 		final Raster[] rasters = new Raster[numCoverages];
 		final int[] counts = new int[numCoverages];
 		for (int i = 0; i < numCoverages; i++) {
-			final String tileSizeCoverageName = coverageNamePrefix + i;
+			final String tileSizeCoverageName = coverageNamePrefix + (i+1);
 			RasterUtils.COVERAGE_NAME = coverageNamePrefix + "_" + i +"_";
 			final GridCoverage gridCoverage = reader.renderGridCoverage(
 					tileSizeCoverageName,

@@ -108,24 +108,25 @@ public class FitToIndexGridCoverage implements
 
 	@Override
 	public Envelope getEnvelope() {
-		final int dimensions = originalEnvelope.getDimension();
-		final Envelope indexedEnvelope = gridCoverage.getEnvelope();
-		final double[] minDP = new double[dimensions];
-		final double[] maxDP = new double[dimensions];
-		for (int d = 0; d < dimensions; d++) {
-			// to perform the intersection of the original envelope and the
-			// indexed envelope, use the max of the mins per dimension and the
-			// min of the maxes
-			minDP[d] = Math.max(
-					originalEnvelope.getMinimum(d),
-					indexedEnvelope.getMinimum(d));
-			maxDP[d] = Math.min(
-					originalEnvelope.getMaximum(d),
-					indexedEnvelope.getMaximum(d));
-		}
-		return new GeneralEnvelope(
-				minDP,
-				maxDP);
+		return gridCoverage.getEnvelope();
+//		final int dimensions = originalEnvelope.getDimension();
+//		final Envelope indexedEnvelope = gridCoverage.getEnvelope();
+//		final double[] minDP = new double[dimensions];
+//		final double[] maxDP = new double[dimensions];
+//		for (int d = 0; d < dimensions; d++) {
+//			// to perform the intersection of the original envelope and the
+//			// indexed envelope, use the max of the mins per dimension and the
+//			// min of the maxes
+//			minDP[d] = Math.max(
+//					originalEnvelope.getMinimum(d),
+//					indexedEnvelope.getMinimum(d));
+//			maxDP[d] = Math.min(
+//					originalEnvelope.getMaximum(d),
+//					indexedEnvelope.getMaximum(d));
+//		}
+//		return new GeneralEnvelope(
+//				minDP,
+//				maxDP);
 	}
 
 	@Override

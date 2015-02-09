@@ -64,9 +64,7 @@ public class RasterTileResizeHelper
 		MergeableRasterTile<?> mergedTile = null;
 		boolean needsMerge = false;
 		final Iterator it = values.iterator();
-		int count = 0;
 		while (it.hasNext()) {
-			count++;
 			final Object value = it.next();
 			if (value instanceof GridCoverage) {
 				if (mergedCoverage == null) {
@@ -86,7 +84,7 @@ public class RasterTileResizeHelper
 			mergedCoverage = newAdapter.getCoverageFromRasterTile(
 					mergedTile,
 					key.getDataId(),
-					index);
+					index,true);
 		}
 		return mergedCoverage;
 	}
