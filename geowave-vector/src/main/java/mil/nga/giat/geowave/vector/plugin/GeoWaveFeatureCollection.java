@@ -1,6 +1,7 @@
 package mil.nga.giat.geowave.vector.plugin;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -9,7 +10,9 @@ import mil.nga.giat.geowave.store.CloseableIterator;
 import mil.nga.giat.geowave.store.adapter.statistics.BoundingBoxDataStatistics;
 import mil.nga.giat.geowave.store.adapter.statistics.CountDataStatistics;
 import mil.nga.giat.geowave.store.adapter.statistics.DataStatistics;
+import mil.nga.giat.geowave.store.adapter.statistics.TimeRangeDataStatistics;
 import mil.nga.giat.geowave.store.query.TemporalConstraints;
+import mil.nga.giat.geowave.store.query.TemporalRange;
 import mil.nga.giat.geowave.vector.wms.DistributableRenderer;
 import mil.nga.giat.geowave.vector.wms.accumulo.RenderedMaster;
 
@@ -37,7 +40,7 @@ import com.vividsolutions.jts.geom.GeometryFactory;
  * object in order to open the appropriate cursor to iterate over data. It uses
  * Keys within the Query hints to determine whether to perform special purpose
  * queries such as decimation or distributed rendering.
- *
+ * 
  */
 public class GeoWaveFeatureCollection extends
 		DataFeatureCollection
@@ -353,7 +356,25 @@ public class GeoWaveFeatureCollection extends
 				new ExtractTimeFilterVisitor(
 						reader.getComponents().getAdapter().getTimeDescriptors()),
 				null);
-		return bbox.isEmpty() ? null : bbox;
+		if (bbox.isEmpty()) {
+			return null;
+		}
+
+		final Map<ByteArrayId, DataStatistics<SimpleFeature>> statsMap = reader.getComponents().getDataStatistics(
+				reader.getTransaction());
+		if (statsMap.containsKey(TimeRangeDataStatistics.STATS_ID)) {
+			final TimeRangeDataStatistics<SimpleFeature> stats = (TimeRangeDataStatistics<SimpleFeature>) statsMap.get(TimeRangeDataStatistics.STATS_ID);
+			final TemporalConstraints constraints = new TemporalConstraints(
+					new TemporalRange(
+							new Date(
+									(long) stats.getMin()),
+							new Date(
+									(long) stats.getMax())));
+			return TemporalConstraints.findIntersections(
+					bbox,
+					constraints);
+		}
+		return bbox;
 	}
 
 	@Override

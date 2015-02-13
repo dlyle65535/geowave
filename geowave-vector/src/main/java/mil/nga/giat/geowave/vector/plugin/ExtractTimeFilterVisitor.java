@@ -863,7 +863,7 @@ public class ExtractTimeFilterVisitor extends
 			String name ) {
 		return (this.timeDescriptor == null || (this.timeDescriptor.getTime() != null && this.timeDescriptor.getTime().getLocalName().equals(
 				name))) || (this.timeDescriptor.getEndRange() != null && this.timeDescriptor.getEndRange().getLocalName().equals(
-				name)) || (this.timeDescriptor.getEndRange() != null && this.timeDescriptor.getEndRange().getLocalName().equals(
+				name)) || (this.timeDescriptor.getStartRange() != null && this.timeDescriptor.getStartRange().getLocalName().equals(
 				name));
 
 	}

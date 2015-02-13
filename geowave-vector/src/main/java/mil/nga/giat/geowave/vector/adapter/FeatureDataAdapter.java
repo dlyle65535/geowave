@@ -7,7 +7,6 @@ import java.util.List;
 import mil.nga.giat.geowave.accumulo.mapreduce.HadoopDataAdapter;
 import mil.nga.giat.geowave.index.ByteArrayId;
 import mil.nga.giat.geowave.index.StringUtils;
-import mil.nga.giat.geowave.store.TimeUtils;
 import mil.nga.giat.geowave.store.adapter.AbstractDataAdapter;
 import mil.nga.giat.geowave.store.adapter.AdapterPersistenceEncoding;
 import mil.nga.giat.geowave.store.adapter.IndexFieldHandler;
@@ -20,6 +19,7 @@ import mil.nga.giat.geowave.store.adapter.statistics.DataStatistics;
 import mil.nga.giat.geowave.store.adapter.statistics.DataStatisticsVisibilityHandler;
 import mil.nga.giat.geowave.store.adapter.statistics.FieldTypeStatisticVisibility;
 import mil.nga.giat.geowave.store.adapter.statistics.StatisticalDataAdapter;
+import mil.nga.giat.geowave.store.adapter.statistics.TimeRangeDataStatistics;
 import mil.nga.giat.geowave.store.data.field.FieldReader;
 import mil.nga.giat.geowave.store.data.field.FieldUtils;
 import mil.nga.giat.geowave.store.data.field.FieldVisibilityHandler;
@@ -33,6 +33,7 @@ import mil.nga.giat.geowave.vector.plugin.GeoWaveGTDataStore;
 import mil.nga.giat.geowave.vector.plugin.visibility.AdaptorProxyFieldLevelVisibilityHandler;
 import mil.nga.giat.geowave.vector.plugin.visibility.JsonDefinitionColumnVisibilityManagement;
 import mil.nga.giat.geowave.vector.stats.FeatureBoundingBoxStatistics;
+import mil.nga.giat.geowave.vector.stats.FeatureTimeRangeStatistics;
 import mil.nga.giat.geowave.vector.utils.TimeDescriptors;
 
 import org.apache.log4j.Logger;
@@ -106,7 +107,8 @@ public class FeatureDataAdapter extends
 
 	private final static ByteArrayId[] SUPPORTED_STATS_IDS = new ByteArrayId[] {
 		BoundingBoxDataStatistics.STATS_ID,
-		CountDataStatistics.STATS_ID
+		CountDataStatistics.STATS_ID,
+		TimeRangeDataStatistics.STATS_ID
 	};
 	private final static DataStatisticsVisibilityHandler<SimpleFeature> GEOMETRY_VISIBILITY_HANDLER = new FieldTypeStatisticVisibility<SimpleFeature>(
 			GeometryWrapper.class);
@@ -215,34 +217,40 @@ public class FeatureDataAdapter extends
 		return fieldVisibilityManagement;
 	}
 
+	public IndexFieldHandler<SimpleFeature, Time, Object> getTimeRangeHandler(
+			SimpleFeatureType featureType ) {
+		final TimeDescriptors timeDescriptors = inferTimeAttributeDescriptor(featureType);
+		if ((timeDescriptors.getStartRange() != null) && (timeDescriptors.getEndRange() != null)) {
+			return (new FeatureTimeRangeHandler(
+					new FeatureAttributeHandler(
+							timeDescriptors.getStartRange()),
+					new FeatureAttributeHandler(
+							timeDescriptors.getEndRange()),
+					new AdaptorProxyFieldLevelVisibilityHandler(
+							timeDescriptors.getStartRange().getLocalName(),
+							this)));
+		}
+		else if (timeDescriptors.getTime() != null) {
+			// if we didn't succeed in identifying a start and end time,
+			// just grab the first attribute and use it as a timestamp
+			return new FeatureTimestampHandler(
+					timeDescriptors.getTime(),
+					new AdaptorProxyFieldLevelVisibilityHandler(
+							timeDescriptors.getTime().getLocalName(),
+							this));
+		}
+		return null;
+	}
+
 	@Override
 	protected List<IndexFieldHandler<SimpleFeature, ? extends CommonIndexValue, Object>> getDefaultTypeMatchingHandlers(
 			final Object typeObj ) {
 		if ((typeObj != null) && (typeObj instanceof SimpleFeatureType)) {
-			final TimeDescriptors timeDescriptors = inferTimeAttributeDescriptor((SimpleFeatureType) typeObj);
-			nativeFieldHandlers = typeToFieldHandlers((SimpleFeatureType) typeObj);
-			final List<IndexFieldHandler<SimpleFeature, ? extends CommonIndexValue, Object>> defaultHandlers = new ArrayList<IndexFieldHandler<SimpleFeature, ? extends CommonIndexValue, Object>>();
 			final SimpleFeatureType internalType = (SimpleFeatureType) typeObj;
 
-			if ((timeDescriptors.getStartRange() != null) && (timeDescriptors.getEndRange() != null)) {
-				defaultHandlers.add(new FeatureTimeRangeHandler(
-						new FeatureAttributeHandler(
-								timeDescriptors.getStartRange()),
-						new FeatureAttributeHandler(
-								timeDescriptors.getEndRange()),
-						new AdaptorProxyFieldLevelVisibilityHandler(
-								timeDescriptors.getStartRange().getLocalName(),
-								this)));
-			}
-			else if (timeDescriptors.getTime() != null) {
-				// if we didn't succeed in identifying a start and end time,
-				// just grab the first attribute and use it as a timestamp
-				defaultHandlers.add(new FeatureTimestampHandler(
-						timeDescriptors.getTime(),
-						new AdaptorProxyFieldLevelVisibilityHandler(
-								timeDescriptors.getTime().getLocalName(),
-								this)));
-			}
+			nativeFieldHandlers = typeToFieldHandlers((SimpleFeatureType) typeObj);
+			final List<IndexFieldHandler<SimpleFeature, ? extends CommonIndexValue, Object>> defaultHandlers = new ArrayList<IndexFieldHandler<SimpleFeature, ? extends CommonIndexValue, Object>>();
+			defaultHandlers.add(getTimeRangeHandler(internalType));
 
 			defaultHandlers.add(new FeatureGeometryHandler(
 					internalType.getGeometryDescriptor(),
@@ -505,6 +513,10 @@ public class FeatureDataAdapter extends
 			return new CountDataStatistics(
 					getAdapterId());
 		}
+		else if (TimeRangeDataStatistics.STATS_ID.equals(statisticsId)) {
+			return new FeatureTimeRangeStatistics(
+					this.getAdapterId(), this.getTimeRangeHandler(this.reprojectedType));
+		}
 		return null;
 	}
 
@@ -535,7 +547,8 @@ public class FeatureDataAdapter extends
 		final TimeDescriptors timeDescriptors = new TimeDescriptors();
 		timeDescriptors.inferType(persistType);
 		// Up the meta-data so that it is clear and visible any inference that
-		// has occurred here. Also, this is critical to serialization/deserialization
+		// has occurred here. Also, this is critical to
+		// serialization/deserialization
 		timeDescriptors.updateType(persistType);
 		return timeDescriptors;
 	}

@@ -15,12 +15,14 @@ import mil.nga.giat.geowave.vector.utils.TimeDescriptors;
 import org.geotools.data.Query;
 import org.geotools.feature.NameImpl;
 import org.geotools.feature.type.AttributeDescriptorImpl;
+import org.geotools.filter.FilterFactoryImpl;
 import org.geotools.filter.text.cql2.CQL;
 import org.geotools.filter.text.cql2.CQLException;
 import org.geotools.filter.text.ecql.ECQL;
 import org.geotools.gml3.v3_2.gco.GCOSchema;
 import org.junit.Test;
 import org.opengis.filter.Filter;
+import org.opengis.filter.FilterFactory;
 
 public class ExtractTimeFilterVisitorTest
 {
@@ -33,6 +35,24 @@ public class ExtractTimeFilterVisitorTest
 					485903457,
 					false,
 					new Date()));
+	
+	private final TimeDescriptors RANGEDESCRIPTOR = new TimeDescriptors(
+			new AttributeDescriptorImpl(
+					GCOSchema.DATE_PROPERTYTYPE_TYPE,
+					new NameImpl(
+							"start"),
+					100,
+					485903457,
+					false,
+					new Date()),
+					new AttributeDescriptorImpl(
+							GCOSchema.DATE_PROPERTYTYPE_TYPE,
+							new NameImpl(
+									"end"),
+							100,
+							485903457,
+							false,
+							new Date()));
 
 	@Test
 	public void testAfter()
@@ -80,7 +100,7 @@ public class ExtractTimeFilterVisitorTest
 			ParseException {
 		final ExtractTimeFilterVisitor visitor = new ExtractTimeFilterVisitor();
 		final Date stime = DateUtilities.parseISO("2005-05-19T20:32:56Z");
-		final Date etime = DateUtilities.parseISO("2005-05-19T21:32:56Z");
+		final Date etime = DateUtilities.parseISO("2005-05-20T20:32:56Z");
 		Filter filter = ECQL.toFilter("when > 2005-05-19T20:32:56Z");
 		Query query = new Query(
 				"type",
@@ -107,6 +127,26 @@ public class ExtractTimeFilterVisitorTest
 				null);
 		assertNotNull(range);
 		assertTrue(range.isEmpty());
+		
+		final ExtractTimeFilterVisitor visitorWithRangeDescriptor = new ExtractTimeFilterVisitor(
+				RANGEDESCRIPTOR);
+		filter = ECQL.toFilter("start > 2005-05-19T20:32:56Z and end < 2005-05-20T20:32:56Z");
+		FilterFactory factory = new FilterFactoryImpl();
+		filter = factory.and(Filter.INCLUDE, filter);
+		query = new Query(
+				"type",
+				filter);
+		range = (TemporalConstraints) query.getFilter().accept(
+				visitorWithRangeDescriptor,
+				null);
+		assertNotNull(range);
+		assertTrue(!range.isEmpty());
+		assertEquals(
+				stime,
+				range.getStartRange().getStartTime());
+		assertEquals(
+				etime,
+				range.getEndRange().getEndTime());
 
 	}
 
