@@ -111,22 +111,19 @@ public class GeoWaveFeatureSourceTest
 				new ByteArrayId(
 						"geostuff".getBytes(StringUtils.UTF8_CHAR_SET)));
 		assertTrue(stats.hasNext());
-		DataStatistics<?> stats1 = stats.next();
-		assertTrue(stats.hasNext());
-		DataStatistics<?> stats2 = stats.next();
-		assertFalse(stats.hasNext());
-		BoundingBoxDataStatistics<SimpleFeature> bboxStats;
-		CountDataStatistics<SimpleFeature> cStats;
-		if (stats1 instanceof BoundingBoxDataStatistics) {
-
-			bboxStats = (BoundingBoxDataStatistics<SimpleFeature>) stats1;
-			cStats = (CountDataStatistics<SimpleFeature>) stats2;
+		int count = 0;
+		BoundingBoxDataStatistics<SimpleFeature> bboxStats = null;
+		CountDataStatistics<SimpleFeature> cStats = null;
+		while (stats.hasNext()) {
+			DataStatistics<?> statsData = stats.next();
+			if (statsData instanceof BoundingBoxDataStatistics) bboxStats = (BoundingBoxDataStatistics<SimpleFeature>) statsData;
+			if (statsData instanceof CountDataStatistics) cStats = (CountDataStatistics<SimpleFeature>) statsData;
+			count++;
 		}
-		else {
+		assertEquals(
+				3,
+				count);
 
-			bboxStats = (BoundingBoxDataStatistics<SimpleFeature>) stats2;
-			cStats = (CountDataStatistics<SimpleFeature>) stats1;
-		}
 		assertEquals(
 				43.454,
 				bboxStats.getMaxX(),
@@ -190,8 +187,7 @@ public class GeoWaveFeatureSourceTest
 		SimpleFeature newFeature = writer.next();
 		newFeature.setAttribute(
 				"pop",
-				Long.valueOf(
-						100));
+				Long.valueOf(100));
 		newFeature.setAttribute(
 				"pid",
 				UUID.randomUUID().toString());
@@ -208,8 +204,7 @@ public class GeoWaveFeatureSourceTest
 		newFeature = writer.next();
 		newFeature.setAttribute(
 				"pop",
-				Long.valueOf(
-						100));
+				Long.valueOf(100));
 		newFeature.setAttribute(
 				"pid",
 				UUID.randomUUID().toString());
@@ -226,8 +221,7 @@ public class GeoWaveFeatureSourceTest
 		newFeature = writer.next();
 		newFeature.setAttribute(
 				"pop",
-				Long.valueOf(
-						100));
+				Long.valueOf(100));
 		newFeature.setAttribute(
 				"pid",
 				UUID.randomUUID().toString());

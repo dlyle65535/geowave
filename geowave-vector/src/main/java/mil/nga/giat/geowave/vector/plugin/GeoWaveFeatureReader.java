@@ -11,8 +11,12 @@ import java.util.Set;
 import mil.nga.giat.geowave.index.ByteArrayId;
 import mil.nga.giat.geowave.index.StringUtils;
 import mil.nga.giat.geowave.store.CloseableIterator;
+import mil.nga.giat.geowave.store.GeometryUtils;
+import mil.nga.giat.geowave.store.adapter.statistics.BoundingBoxDataStatistics;
+import mil.nga.giat.geowave.store.adapter.statistics.TimeRangeDataStatistics;
 import mil.nga.giat.geowave.store.index.Index;
 import mil.nga.giat.geowave.store.query.BasicQuery;
+import mil.nga.giat.geowave.store.query.BasicQuery.Constraints;
 import mil.nga.giat.geowave.store.query.SpatialQuery;
 import mil.nga.giat.geowave.store.query.SpatialTemporalQuery;
 import mil.nga.giat.geowave.store.query.TemporalConstraints;
@@ -259,48 +263,60 @@ public class GeoWaveFeatureReader implements
 
 	}
 
+	private Constraints getTimeConstraints() {
+		TimeRangeDataStatistics timeStats = (TimeRangeDataStatistics) this.components.getDataStatistics(
+				transaction).get(
+				TimeRangeDataStatistics.STATS_ID);
+		return (timeStats != null) ? timeStats.getConstraints() : SpatialTemporalQuery.createConstraints(
+				new TemporalConstraints(),
+				true);
+	}
+
+	private Constraints getBBOXConstraints() {
+		BoundingBoxDataStatistics bboxStats = (BoundingBoxDataStatistics) this.components.getDataStatistics(
+				transaction).get(
+				BoundingBoxDataStatistics.STATS_ID);
+		return (bboxStats != null) ? bboxStats.getConstraints() : new Constraints();
+	}
+
 	private BasicQuery composeQuery(
 			final Geometry jtsBounds,
 			final TemporalConstraints timeBounds ) {
 
-		if (jtsBounds == null) {
-			if (timeBounds == null) {
-				return new TemporalQuery(
-						new TemporalConstraints());
-			}
-			else {
-				return new TemporalQuery(
-						timeBounds);
-			}
-		}
-		else {
+		final Constraints timeConstraints = timeBounds != null ? SpatialTemporalQuery.createConstraints(
+				timeBounds,
+				false) : getTimeConstraints();
+		final Constraints geoConstraints = jtsBounds != null ? GeometryUtils.basicConstraintsFromGeometry(jtsBounds) : getBBOXConstraints();
+		final Constraints finalSet = timeConstraints.merge(geoConstraints);
 
-			if (timeBounds != null) {
-				final BasicQuery query = new SpatialTemporalQuery(
-						timeBounds,
-						jtsBounds);
-				// for now, do not use a geotemporal query IF an index does not
-				// exist to support it
-				// NOTE: If the index does exist, the assumption is that the
-				// data adapter is indexed under
-				// the index's constraints. Ideally, we could use meta-data to
-				// determine which adapters are indexed
-				// by specific indices.
-				try (CloseableIterator<Index> indexIt = getComponents().getDataStore().getIndices()) {
-					while (indexIt.hasNext()) {
-						if (query.isSupported(indexIt.next())) {
-							return query;
-						}
-					}
-				}
-				catch (final IOException e) {
-					LOGGER.error(
-							"Error determining available indices.  Supporting non-temporal queries only.",
-							e);
+		final BasicQuery query = (jtsBounds != null) ? new SpatialQuery(
+				finalSet,
+				jtsBounds) : new BasicQuery(
+				finalSet);
+
+		// for now, do not use a geotemporal query IF an index does not
+		// exist to support it
+		// NOTE: If the index does exist, the assumption is that the
+		// data adapter is indexed under
+		// the index's constraints. Ideally, we could use meta-data to
+		// determine which adapters are indexed
+		// by specific indices.
+		try (CloseableIterator<Index> indexIt = getComponents().getDataStore().getIndices()) {
+			while (indexIt.hasNext()) {
+				if (query.isSupported(indexIt.next())) {
+					return query;
 				}
 			}
-			return new SpatialQuery(
-					jtsBounds);
 		}
+		catch (final IOException e) {
+			LOGGER.error(
+					"Error determining available indices.  Supporting non-temporal queries only.",
+					e);
+		}
+
+		return (jtsBounds != null) ? new SpatialQuery(
+				jtsBounds) : new TemporalQuery(
+				new TemporalConstraints());
+
 	}
 }

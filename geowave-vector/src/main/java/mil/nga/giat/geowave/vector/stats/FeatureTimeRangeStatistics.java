@@ -13,13 +13,17 @@ public class FeatureTimeRangeStatistics extends
 		TimeRangeDataStatistics<SimpleFeature>
 {
 	private IndexFieldHandler<SimpleFeature, Time, Object> indexHandler;
+	private static final NumericRange ALL_TIME = new NumericRange(
+			0,
+			Long.MAX_VALUE);
 
 	protected FeatureTimeRangeStatistics() {
 		super();
 	}
 
 	public FeatureTimeRangeStatistics(
-			final ByteArrayId dataAdapterId, IndexFieldHandler<SimpleFeature, Time, Object> indexHandler) {
+			final ByteArrayId dataAdapterId,
+			final IndexFieldHandler<SimpleFeature, Time, Object> indexHandler ) {
 		super(
 				dataAdapterId);
 		this.indexHandler = indexHandler;
@@ -27,11 +31,19 @@ public class FeatureTimeRangeStatistics extends
 
 	@Override
 	protected NumericRange getRange(
-			SimpleFeature entry ) {
-		Time time = indexHandler.toIndexValue(entry);
-		NumericData nd =  time.toNumericData();
-		if (nd instanceof NumericRange) return (NumericRange)nd;
-		return new NumericRange(nd.getMin(), nd.getMax());
+			final SimpleFeature entry ) {
+		if (indexHandler == null) {
+			return ALL_TIME;
+		}
+
+		final Time time = indexHandler.toIndexValue(entry);
+		final NumericData nd = time.toNumericData();
+		if (nd instanceof NumericRange) {
+			return (NumericRange) nd;
+		}
+		return new NumericRange(
+				nd.getMin(),
+				nd.getMax());
 	}
 
 }

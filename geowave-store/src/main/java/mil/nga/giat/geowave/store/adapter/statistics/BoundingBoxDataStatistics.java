@@ -1,10 +1,19 @@
 package mil.nga.giat.geowave.store.adapter.statistics;
 
 import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Map;
 
 import mil.nga.giat.geowave.index.ByteArrayId;
 import mil.nga.giat.geowave.index.Mergeable;
+import mil.nga.giat.geowave.index.dimension.LatitudeDefinition;
+import mil.nga.giat.geowave.index.dimension.LongitudeDefinition;
+import mil.nga.giat.geowave.index.dimension.NumericDimensionDefinition;
+import mil.nga.giat.geowave.index.sfc.data.NumericRange;
+import mil.nga.giat.geowave.store.GeometryUtils;
 import mil.nga.giat.geowave.store.IngestEntryInfo;
+import mil.nga.giat.geowave.store.query.BasicQuery.ConstraintData;
+import mil.nga.giat.geowave.store.query.BasicQuery.Constraints;
 
 import com.vividsolutions.jts.geom.Envelope;
 
@@ -99,6 +108,34 @@ abstract public class BoundingBoxDataStatistics<T> extends
 					maxY,
 					env.getMaxY());
 		}
+	}
+
+	public Constraints getConstraints() {
+		// Create a NumericRange object using the x axis
+		final NumericRange rangeLongitude = new NumericRange(
+				minX,
+				maxX);
+
+		// Create a NumericRange object using the y axis
+		final NumericRange rangeLatitude = new NumericRange(
+				minY,
+				maxY);
+
+		final Map<Class<? extends NumericDimensionDefinition>, ConstraintData> constraintsPerDimension = new HashMap<Class<? extends NumericDimensionDefinition>, ConstraintData>();
+		// Create and return a new IndexRange array with an x and y axis
+		// range
+		constraintsPerDimension.put(
+				LongitudeDefinition.class,
+				new ConstraintData(
+						rangeLongitude,
+						true));
+		constraintsPerDimension.put(
+				LatitudeDefinition.class,
+				new ConstraintData(
+						rangeLatitude,
+						true));
+		return new Constraints(
+				constraintsPerDimension);
 	}
 
 	abstract protected Envelope getEnvelope(

@@ -5,7 +5,6 @@ import java.util.Map;
 
 import mil.nga.giat.geowave.index.dimension.NumericDimensionDefinition;
 import mil.nga.giat.geowave.index.dimension.TimeDefinition;
-import mil.nga.giat.geowave.index.sfc.data.NumericData;
 import mil.nga.giat.geowave.index.sfc.data.NumericRange;
 
 /**
@@ -31,15 +30,15 @@ public class TemporalQuery extends
 
 	private static Constraints createTemporalConstraints(
 			final TemporalConstraints contraints ) {
-		final Map<Class<? extends NumericDimensionDefinition>, NumericData> constraintsPerDimension = new HashMap<Class<? extends NumericDimensionDefinition>, NumericData>();
+		final Map<Class<? extends NumericDimensionDefinition>, ConstraintData> constraintsPerDimension = new HashMap<Class<? extends NumericDimensionDefinition>, ConstraintData>();
 		// Create and return a new IndexRange array with an x and y axis
 		// range
 		for (final TemporalRange range : contraints.constraints) {
 			constraintsPerDimension.put(
 					TimeDefinition.class,
-					new NumericRange(
+					new ConstraintData(new NumericRange(
 							range.getStartTime().getTime(),
-							range.getEndTime().getTime()));
+							range.getEndTime().getTime()),false));
 		}
 
 		final Constraints constraints = new Constraints(

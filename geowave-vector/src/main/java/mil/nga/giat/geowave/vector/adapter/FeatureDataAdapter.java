@@ -250,7 +250,8 @@ public class FeatureDataAdapter extends
 
 			nativeFieldHandlers = typeToFieldHandlers((SimpleFeatureType) typeObj);
 			final List<IndexFieldHandler<SimpleFeature, ? extends CommonIndexValue, Object>> defaultHandlers = new ArrayList<IndexFieldHandler<SimpleFeature, ? extends CommonIndexValue, Object>>();
-			defaultHandlers.add(getTimeRangeHandler(internalType));
+			IndexFieldHandler<SimpleFeature, Time, Object> timeHandler = getTimeRangeHandler(internalType);
+			if (timeHandler != null) defaultHandlers.add(timeHandler);
 
 			defaultHandlers.add(new FeatureGeometryHandler(
 					internalType.getGeometryDescriptor(),
