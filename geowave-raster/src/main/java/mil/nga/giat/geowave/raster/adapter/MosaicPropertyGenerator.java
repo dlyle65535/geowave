@@ -37,25 +37,6 @@ public class MosaicPropertyGenerator extends
 				});
 	}
 
-	static boolean registered = false;
-
-	public synchronized static void register(
-			final boolean force ) {
-		if (!registered || force) {
-			final OperationRegistry registry = JAI.getDefaultInstance().getOperationRegistry();
-			registry.addPropertyGenerator(
-					"rendered",
-					"Mosaic",
-					new MosaicPropertyGenerator());
-			registry.unregisterDescriptor(new MosaicDescriptor());
-			registry.registerDescriptor(new SourceThresholdMosaicDescriptor());
-//			registry.unregisterFactory("rendered", "mosaic", "com.sun.media.jai", new MosaicRIF());
-			registry.registerFactory("rendered", "mosaic", "com.sun.media.jai", new MosaicRIF());
-//			rendered    com.sun.media.jai.opimage.MosaicRIF		com.sun.media.jai	mosaic		sunmosaicrif
-			registered = true;
-		}
-	}
-
 	@Override
 	public Object getProperty(
 			final String name,

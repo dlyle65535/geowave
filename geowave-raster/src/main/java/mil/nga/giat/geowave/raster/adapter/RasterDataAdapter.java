@@ -36,7 +36,6 @@ import javax.media.jai.InterpolationBicubic2;
 import javax.media.jai.InterpolationBilinear;
 import javax.media.jai.InterpolationNearest;
 import javax.media.jai.PlanarImage;
-import javax.media.jai.RenderedOp;
 import javax.media.jai.remote.SerializableState;
 import javax.media.jai.remote.SerializerFactory;
 
@@ -128,7 +127,6 @@ import org.opengis.referencing.operation.MathTransform1D;
 import org.opengis.referencing.operation.TransformException;
 import org.opengis.util.InternationalString;
 
-import com.google.common.collect.Iterators;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 
@@ -137,11 +135,7 @@ public class RasterDataAdapter implements
 		IndexDependentDataAdapter<GridCoverage>,
 		AttachedIteratorDataAdapter<GridCoverage>,
 		HadoopDataAdapter<GridCoverage, GridCoverageWritable>
-{ // these
-	// priorities
-	// are fairly
-	// arbitrary at
-	// the moment
+{ // these priorities are fairly arbitrary at the moment
 	private static final int RASTER_TILE_COMBINER_PRIORITY = 4;
 	private static final int RASTER_TILE_VISIBILITY_COMBINER_PRIORITY = 6;
 	private final static Logger LOGGER = Logger.getLogger(RasterDataAdapter.class);
@@ -241,6 +235,8 @@ public class RasterDataAdapter implements
 				backgroundValuesPerBand,
 				new HistogramConfig(
 						sampleModel),
+				true,
+				Interpolation.INTERP_BICUBIC,
 				buildPyramid,
 				new NoDataMergeStrategy());
 	}
@@ -261,6 +257,8 @@ public class RasterDataAdapter implements
 				adapter.getNoDataValuesPerBand(),
 				adapter.backgroundValuesPerBand,
 				adapter.histogramConfig,
+				adapter.equalizeHistogram,
+				interpolationToByte(adapter.interpolation),
 				adapter.buildPyramid,
 				mergeStrategy);
 	}
@@ -275,9 +273,14 @@ public class RasterDataAdapter implements
 				adapter.getColorModel(),
 				adapter.getMetadata(),
 				adapter.tileSize,
+				null,
+				null,
+				null,
 				adapter.getNoDataValuesPerBand(),
 				adapter.backgroundValuesPerBand,
 				adapter.histogramConfig,
+				adapter.equalizeHistogram,
+				interpolationToByte(adapter.interpolation),
 				adapter.buildPyramid,
 				mergeStrategy);
 	}
@@ -291,6 +294,8 @@ public class RasterDataAdapter implements
 			final double[][] noDataValuesPerBand,
 			final double[] backgroundValuesPerBand,
 			final HistogramConfig histogramConfig,
+			final boolean equalizeHistogram,
+			final int interpolationType,
 			final boolean buildPyramid,
 			final RasterTileMergeStrategy<?> mergeStrategy ) {
 		this(
@@ -305,8 +310,8 @@ public class RasterDataAdapter implements
 				noDataValuesPerBand,
 				backgroundValuesPerBand,
 				histogramConfig,
-				histogramConfig != null,
-				Interpolation.INTERP_BICUBIC,
+				equalizeHistogram,
+				interpolationType,
 				buildPyramid,
 				mergeStrategy);
 	}
@@ -351,7 +356,6 @@ public class RasterDataAdapter implements
 	}
 
 	private void init() {
-
 		int supportedStatsLength = 3;
 
 		if (histogramConfig != null) {
@@ -374,9 +378,6 @@ public class RasterDataAdapter implements
 	public Iterator<GridCoverage> convertToIndex(
 			final Index index,
 			final GridCoverage gridCoverage ) {
-		if (gridCoverage instanceof FitToIndexGridCoverage){
-			return Iterators.singletonIterator(gridCoverage);
-		}
 		if (index.getIndexStrategy() instanceof HierarchicalNumericIndexStrategy) {
 			final CoordinateReferenceSystem sourceCrs = gridCoverage.getCoordinateReferenceSystem();
 
@@ -473,12 +474,7 @@ public class RasterDataAdapter implements
 				final Entry<Double, SubStrategy> bestEntry = substrategyMap.higherEntry(1.0);
 				pyramidLevels.add(bestEntry.getValue());
 			}
-			System.err.println("Levels: " + pyramidLevels.size());
-			System.err.println("Tier: " + pyramidLevels.get(0).getPrefix()[0]);
-			if (pyramidLevels.size() != 1){
-				System.err.println("crap");
-			}
-			SubStrategy pyramidLevel = pyramidLevels.get(0);
+			final SubStrategy pyramidLevel = pyramidLevels.get(0);
 			final double[] idRangePerDimension = pyramidLevel.getIndexStrategy().getHighestPrecisionIdRangePerDimension();
 			// to create a pyramid, ingest into each substrategy that is
 			// lower resolution than the sample set in at least one
@@ -492,9 +488,6 @@ public class RasterDataAdapter implements
 				maxSubstrategyResToSampleSetRes = Math.max(
 						maxSubstrategyResToSampleSetRes,
 						substrategyResToSampleSetRes);
-			}
-			if (maxSubstrategyResToSampleSetRes != 1.0){
-				System.err.println("crap " + maxSubstrategyResToSampleSetRes);
 			}
 			return new IteratorWrapper<SubStrategy, GridCoverage>(
 					pyramidLevels.iterator(),
@@ -669,13 +662,6 @@ public class RasterDataAdapter implements
 								tileInterpolation = Interpolation.getInstance(Interpolation.INTERP_NEAREST);
 							}
 						}
-						// this is another workaround because GeoTools
-						// resampling will force the source threshold to be 1.0
-						// on Mosaic operations, which will mask all values
-						// under 1.0.
-						// org.geotools.coverage.processing.operation.Resample2D
-						// line 631 in gt-coverage-12.1
-						MosaicPropertyGenerator.register(false);
 						final GridCoverage resampledCoverage = (GridCoverage) Operations.DEFAULT.resample(
 								originalData,
 								GeoWaveGTRasterFormat.DEFAULT_CRS,
@@ -793,15 +779,13 @@ public class RasterDataAdapter implements
 		return getCoverageFromRasterTile(
 				(RasterTile) rasterTile,
 				data.getIndexInsertionId(),
-				index,
-				false);
+				index);
 	}
 
 	public GridCoverage getCoverageFromRasterTile(
 			final RasterTile rasterTile,
 			final ByteArrayId insertionId,
-			final Index index,
-			boolean returnFit) {
+			final Index index ) {
 		final MultiDimensionalNumericData indexRange = index.getIndexStrategy().getRangeForId(
 				insertionId);
 		final NumericDimensionDefinition[] orderedDimensions = index.getIndexStrategy().getOrderedDimensionDefinitions();
@@ -832,18 +816,10 @@ public class RasterDataAdapter implements
 				maxesPerDimension[1],
 				GeoWaveGTRasterFormat.DEFAULT_CRS);
 		try {
-			if (returnFit){
-			return new FitToIndexGridCoverage( prepareCoverage(
+			return prepareCoverage(
 					rasterTile.getDataBuffer(),
 					tileSize,
-					mapExtent),insertionId, null,null,null,null);
-			}
-			else{
-				return prepareCoverage(
-						rasterTile.getDataBuffer(),
-						tileSize,
-						mapExtent);
-			}
+					mapExtent);
 		}
 		catch (final IOException e) {
 			LOGGER.warn(

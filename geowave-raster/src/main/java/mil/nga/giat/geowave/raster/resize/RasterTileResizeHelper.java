@@ -84,7 +84,7 @@ public class RasterTileResizeHelper
 			mergedCoverage = newAdapter.getCoverageFromRasterTile(
 					mergedTile,
 					key.getDataId(),
-					index,true);
+					index);
 		}
 		return mergedCoverage;
 	}
